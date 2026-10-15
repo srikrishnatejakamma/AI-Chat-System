@@ -45,7 +45,8 @@ def stream_answer(settings: Settings, question: str, docs: list[Document], histo
         model=settings.chat_model,
         base_url=settings.ollama_url,
         temperature=0.1,
-        num_ctx=8192,
+        # Phi-3 is the low-memory option; its KV cache is large at 8K context.
+        num_ctx=4096 if settings.chat_model.split(":", 1)[0] == "phi3" else 8192,
         num_predict=1536,
         client_kwargs={"timeout": 300, "trust_env": False},
     )

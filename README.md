@@ -20,7 +20,7 @@ Start Rancher Desktop or Docker Desktop with Linux containers enabled. In PowerS
 .\scripts\start-docker.ps1
 ```
 
-The script builds the app, starts Ollama, and downloads `nomic-embed-text` and `phi3`. Phi-3 is the smaller option from the requirements and suits this machine's approximately 8 GB Docker memory allocation. Open **http://localhost:8501**. Downloads may take several minutes; chat works offline after installation and model downloads finish.
+The script builds the app, starts Ollama, and downloads `nomic-embed-text` and `phi3`. Phi-3 is the smaller option from the requirements and uses a 4,096-token context to reduce memory use on this machine's approximately 8 GB Docker allocation. Open **http://localhost:8501**. Downloads may take several minutes; chat works offline after installation and model downloads finish.
 
 For the larger model in the original requirements, allocate sufficient Docker memory (12–16 GB is more comfortable), then run:
 
@@ -106,6 +106,12 @@ docker compose run --rm --no-deps app python -m unittest discover -s tests -v
 ```
 
 After downloading both models, exercise real embeddings, retrieval, generation, citation, missing-information handling, and deletion with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/smoke_test.py
+```
+
+Or with both services running in Docker:
 
 ```text
 docker compose exec app python scripts/smoke_test.py
