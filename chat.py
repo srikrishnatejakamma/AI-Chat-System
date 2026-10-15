@@ -1,6 +1,7 @@
 """Grounded local chat with explicit source blocks and streaming responses."""
 
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import aclosing
 
 from config import Settings
 from langchain_core.documents import Document
@@ -37,11 +38,8 @@ def build_messages(question: str, docs: list[Document], history: list[dict]) -> 
     return messages
 
 
-def stream_answer(settings: Settings, question: str, docs: list[Document], history: list[dict]) -> Iterator[str]:
-    if not docs:
-        yield NOT_FOUND
-        return
-    llm = ChatOllama(
+def chat_model(settings: Settings) -> ChatOllama:
+    return ChatOllama(
         model=settings.chat_model,
         base_url=settings.ollama_url,
         temperature=0.1,
@@ -50,9 +48,26 @@ def stream_answer(settings: Settings, question: str, docs: list[Document], histo
         num_predict=1536,
         client_kwargs={"timeout": 300, "trust_env": False},
     )
-    for chunk in llm.stream(build_messages(question, docs, history)):
+
+
+def stream_answer(settings: Settings, question: str, docs: list[Document], history: list[dict]) -> Iterator[str]:
+    if not docs:
+        yield NOT_FOUND
+        return
+    for chunk in chat_model(settings).stream(build_messages(question, docs, history)):
         if isinstance(chunk.content, str) and chunk.content:
             yield chunk.content
+
+
+async def astream_answer(settings: Settings, question: str, docs: list[Document], history: list[dict]) -> AsyncIterator[str]:
+    """Cancellation closes the in-flight HTTP stream, including before the first token."""
+    if not docs:
+        yield NOT_FOUND
+        return
+    async with aclosing(chat_model(settings).astream(build_messages(question, docs, history))) as stream:
+        async for chunk in stream:
+            if isinstance(chunk.content, str) and chunk.content:
+                yield chunk.content
 
 
 def source_records(docs: list[Document]) -> list[dict]:

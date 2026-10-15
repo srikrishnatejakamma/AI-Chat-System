@@ -44,7 +44,11 @@ Plain Compose defaults to `llama3.1:8b` unless overridden; this checkout's local
 2. Upload one or more PDF, DOCX, or UTF-8 TXT files in the sidebar, then click **Index documents**.
 3. Ask a question in **Conversation**. Use **Search in** to focus on one document or the whole library.
 4. Expand the retrieved excerpts below an answer to inspect the source text and PDF page numbers. Citation numbers correspond to these excerpts.
-5. Use **Document library** to remove an indexed document, **New chat** to clear the current conversation, or **Download conversation** to export it.
+5. Click **Stop response** while finding passages or generating an answer. Any partial text stays saved. **Retry response** creates a new version after a stop or failure; **Regenerate** creates another version of a completed answer.
+6. Use **Response version** beneath an answer to switch between versions. Each keeps its own text, sources, model, timestamp, and status. Regenerating an earlier answer starts a new follow-up branch; switching back restores its earlier follow-up conversation. Regeneration uses the current chat model and the original question's document scope and passage count.
+7. Use **Document library** to remove an indexed document, **New chat** to cancel generation and clear the conversation, or **Download conversation** to export every response version and saved branch as JSON (`schema_version: 2`).
+
+Response versions and branches last for the current browser session. Download them before starting a new chat or removing a document. Stop closes an active model response immediately; if document retrieval is already running, its local lookup may finish in the background, but its result is discarded and generation does not start.
 
 Try `samples/handbook.txt` and ask **“What is the annual learning budget?”** The answer should be **INR 30,000** with a source reference. Ask **“What is the CEO's birthday?”** to check the model's missing-information response.
 
@@ -130,6 +134,6 @@ docker compose exec app python scripts/smoke_test.py
 
 ## Code map
 
-`app.py` is the Streamlit UI, `ingest.py` handles parsing and Chroma storage, `chat.py` builds grounded prompts and streams local answers, `local_models.py` checks installed models, and `config.py` holds runtime settings. This follows the modular Streamlit/Ollama/Chroma architecture in `Requirment.txt` without unnecessary cloud or sentence-transformer dependencies.
+`app.py` is the Streamlit UI, `ingest.py` handles parsing and Chroma storage, `chat.py` builds grounded prompts and streams local answers, `generation.py` runs cancellable background responses, `conversation.py` manages response versions and follow-up branches, `local_models.py` checks installed models, and `config.py` holds runtime settings. This follows the modular Streamlit/Ollama/Chroma architecture in `Requirment.txt` without unnecessary cloud or sentence-transformer dependencies.
 #   A I - C h a t - S y s t e m  
  

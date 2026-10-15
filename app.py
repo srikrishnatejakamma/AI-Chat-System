@@ -6,7 +6,8 @@ import json
 from config import Settings
 import streamlit as st
 
-from chat import source_records, stream_answer
+from conversation import add_version, ensure_versions, export_messages, history_before, new_version, switch_version, sync_selected
+from generation import ACTIVE, GenerationJob
 from ingest import DocumentLibrary
 from local_models import inspect_ollama
 
@@ -56,6 +57,51 @@ def render_sources(sources: list[dict]):
                 st.text(source["text"])
 
 
+def refresh_generation():
+    job = st.session_state.get("generation")
+    if job is None:
+        return False
+    snapshot = job.snapshot()
+    for message in st.session_state.messages:
+        if message["id"] == job.message_id:
+            for version in message["versions"]:
+                if version["id"] == job.version_id:
+                    version.update(snapshot)
+                    sync_selected(message)
+                    if snapshot["status"] not in ACTIVE:
+                        st.session_state.pop("generation", None)
+                        return True
+                    return False
+    # A discarded conversation must never receive a late worker result.
+    job.cancel()
+    st.session_state.pop("generation", None)
+    return True
+
+
+def stop_generation():
+    job = st.session_state.get("generation")
+    if job:
+        job.cancel()
+        refresh_generation()
+
+
+def clear_conversation():
+    stop_generation()
+    st.session_state.messages = []
+
+
+def start_response(index: int, settings: Settings):
+    messages = st.session_state.messages
+    message = messages[index]
+    version = message["versions"][message["selected_version"]]
+    request = message["request"]
+    version.update(document_ids=request["document_ids"], top_k=request["top_k"])
+    job = GenerationJob(message["id"], version["id"])
+    st.session_state.generation = job
+    job.start(library, settings, messages[index - 1]["content"], history_before(messages, index),
+              request["document_ids"], request["top_k"])
+
+
 try:
     base_settings = Settings.from_env()
 except ValueError as error:
@@ -63,6 +109,8 @@ except ValueError as error:
     st.stop()
 
 st.session_state.setdefault("messages", [])
+ensure_versions(st.session_state.messages)
+busy = st.session_state.get("generation") is not None
 status = get_status(base_settings)
 
 with st.sidebar:
@@ -82,8 +130,8 @@ with st.sidebar:
             model for model in status.models
             if model != base_settings.chat_model and "embed" not in model.lower()
         ]
-        chat_model = st.selectbox("Chat model", options=list(dict.fromkeys(candidates)))
-        top_k = st.slider("Retrieved passages", 1, 6, 3)
+        chat_model = st.selectbox("Chat model", options=list(dict.fromkeys(candidates)), disabled=busy)
+        top_k = st.slider("Retrieved passages", 1, 6, 3, disabled=busy)
         st.caption(f"Embedding model: {base_settings.embedding_model}")
         st.caption(f"Local endpoint: {base_settings.ollama_url}")
         st.caption("Changing EMBEDDING_MODEL creates a separate library; re-upload documents for that model.")
@@ -119,7 +167,7 @@ except Exception as error:
 
 with st.sidebar:
     if st.button("Index documents", type="primary", width="stretch",
-                 disabled=not uploads or not embedding_ready):
+                 disabled=busy or not uploads or not embedding_ready):
         with st.status("Indexing on your machine…", expanded=True) as progress:
             failures = 0
             for upload in uploads:
@@ -162,11 +210,11 @@ with library_tab:
             info.text(document["name"])
             info.caption(f"{document['chunks']} passages · {document['bytes'] / 1024:.1f} KB · "
                          f"Indexed {document['indexed_at'][:10]} · {document['id'][:8]}")
-            if action.button("Remove", key=f"delete_{document['id']}", width="stretch"):
+            if action.button("Remove", key=f"delete_{document['id']}", width="stretch", disabled=busy):
                 try:
                     library.delete(document["id"])
                     # Old answers may quote deleted text; discard session history as well.
-                    st.session_state.messages = []
+                    clear_conversation()
                     st.rerun()
                 except Exception as error:
                     show_error(error, "remove this document")
@@ -176,9 +224,9 @@ with chat_tab:
     scope, clear = st.columns([4, 1])
     selected = scope.selectbox("Search in", options=["all"] + list(names),
                                format_func=lambda value: "All documents" if value == "all" else names[value],
-                               disabled=not documents)
+                               disabled=busy or not documents)
     if clear.button("New chat", width="stretch"):
-        st.session_state.messages = []
+        clear_conversation()
         st.rerun()
 
     if not documents:
@@ -198,32 +246,79 @@ with chat_tab:
     else:
         st.caption("Try “What are the key points?” or ask about a specific fact in your documents.")
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-            render_sources(message.get("sources", []))
+    @st.fragment(run_every=0.3 if busy else None)
+    def conversation_ui():
+        if refresh_generation():
+            # Stop polling and re-enable controls outside this fragment.
+            st.rerun()
+        generating = st.session_state.get("generation") is not None
+        messages = st.session_state.messages
+        for index, message in enumerate(messages):
+            with st.chat_message(message["role"]):
+                if message["role"] == "user":
+                    st.markdown(message["content"])
+                    continue
+                version = message["versions"][message["selected_version"]]
+                if version["content"]:
+                    st.markdown(version["content"])
+                phase = version["status"]
+                if phase in ACTIVE:
+                    st.caption("Finding relevant passages…" if phase == "retrieving" else "Generating response…")
+                    if st.button("Stop response", key=f"stop_{version['id']}", type="primary"):
+                        stop_generation()
+                        st.rerun()
+                elif phase == "stopped":
+                    st.info("Response stopped. The partial answer is saved." if version["content"]
+                            else "Response stopped before any text was received.")
+                elif phase == "failed":
+                    st.error("Response failed. You can retry without losing earlier versions.")
+                    if version["error"]:
+                        with st.expander("Technical details"):
+                            st.code(version["error"], language=None)
+                render_sources(version["sources"])
+                controls, action = st.columns([3, 1])
+                count = len(message["versions"])
+                with controls:
+                    if count > 1:
+                        chosen = st.selectbox(
+                            "Response version", options=list(range(count)), index=message["selected_version"],
+                            format_func=lambda value, versions=message["versions"]:
+                                f"Version {value + 1} of {len(versions)} · {versions[value]['status'].capitalize()}",
+                            key=f"version_{message['id']}_{count}", disabled=generating,
+                            help="Switching versions restores that version's follow-up conversation.")
+                        if chosen != message["selected_version"]:
+                            switch_version(messages, index, chosen)
+                            st.rerun()
+                    else:
+                        st.caption(f"Version 1 of 1 · {phase.capitalize()}")
+                    if version["model"]:
+                        st.caption(f"{version['model']} · {version['created_at'][:19].replace('T', ' ')} UTC")
+                retry = phase in {"stopped", "failed"}
+                if action.button("Retry response" if retry else "Regenerate", key=f"regenerate_{message['id']}",
+                                 width="stretch", disabled=generating or not embedding_ready or not chat_ready,
+                                 help="Create a new version using the current model and this question's document scope."):
+                    # Legacy answers used the current document scope.
+                    message.setdefault("request", {"document_ids": None if selected == "all" else [selected], "top_k": top_k})
+                    add_version(messages, index, settings.chat_model)
+                    start_response(index, settings)
+                    st.rerun()
 
-    if question := st.chat_input("Ask something about your documents…",
-                                 disabled=not documents or not embedding_ready or not chat_ready,
-                                 max_chars=4000):
-        history = list(st.session_state.messages)
-        with st.chat_message("user"):
-            st.markdown(question)
-        st.session_state.messages.append({"role": "user", "content": question})
-        with st.chat_message("assistant"):
-            try:
-                with st.spinner("Finding relevant passages…"):
-                    excerpts = library.retrieve(question, document_ids=None if selected == "all" else [selected], k=top_k)
-                answer = st.write_stream(stream_answer(settings, question, excerpts, history))
-                if not answer:
-                    raise ValueError("The local model returned an empty response. Try asking again.")
-                sources = source_records(excerpts)
-                st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
-                render_sources(sources)
-            except Exception as error:
-                show_error(error, "generate an answer")
+        if question := st.chat_input("Ask something about your documents…",
+                                     disabled=generating or not documents or not embedding_ready or not chat_ready,
+                                     max_chars=4000):
+            messages.append({"role": "user", "content": question})
+            version = new_version(settings.chat_model)
+            messages.append({"id": version["id"], "role": "assistant", "content": "", "sources": [],
+                             "versions": [version], "selected_version": 0,
+                             "request": {"document_ids": None if selected == "all" else [selected], "top_k": top_k}})
+            ensure_versions(messages)
+            start_response(len(messages) - 1, settings)
+            st.rerun()
 
-    if st.session_state.messages:
-        st.download_button("Download conversation", data=json.dumps(st.session_state.messages, indent=2, ensure_ascii=False),
-                           file_name="local-document-conversation.json", mime="application/json")
+        if messages:
+            st.download_button("Download conversation", data=json.dumps(
+                {"schema_version": 2, "messages": export_messages(messages)}, indent=2, ensure_ascii=False),
+                file_name="local-document-conversation.json", mime="application/json")
+
+    conversation_ui()
     st.caption("Local models can make mistakes. Use the retrieved excerpts to check important answers. Chat history lasts for this session.")
