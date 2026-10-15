@@ -26,7 +26,7 @@ class ApiTests(unittest.TestCase):
         self.other = self.library.ingest("travel.txt", b"Travel expenses require manager approval.")
         self.calls = []
         self.block = False
-        self.fail = False
+        self.fail_response = False
         self.started, self.closed = Event(), Event()
         ready = ModelStatus(True, (self.settings.chat_model, "phi3", self.settings.embedding_model))
         self.enterContext(patch("api.inspect_ollama", return_value=ready))
@@ -39,7 +39,7 @@ class ApiTests(unittest.TestCase):
         try:
             yield f"Answer {len(self.calls)}: INR 30,000 [1]."
             self.started.set()
-            if self.fail:
+            if self.fail_response:
                 raise ConnectionError("Model connection interrupted")
             if self.block:
                 await asyncio.Event().wait()
@@ -149,7 +149,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/chats").json(), [])
 
     def test_failed_response_saved_and_local_origin_enforced(self):
-        self.fail = True
+        self.fail_response = True
         chat = self.chat()
         self.ask(chat["id"])
         version = self.settle(chat["id"])["messages"][-1]["versions"][0]
