@@ -9,3 +9,5 @@ temp/
 .env
 .browser-test/
 artifacts/
+frontend/node_modules/
+frontend/dist/
