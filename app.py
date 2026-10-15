@@ -282,17 +282,19 @@ with chat_tab:
                     if count > 1:
                         chosen = st.selectbox(
                             "Response version", options=list(range(count)), index=message["selected_version"],
-                            format_func=lambda value, versions=message["versions"]:
-                                f"Version {value + 1} of {len(versions)} · {versions[value]['status'].capitalize()}",
-                            key=f"version_{message['id']}_{count}", disabled=generating,
+                            format_func=lambda value, total=count: f"Version {value + 1} of {total}",
+                            key=f"response_version_{message['id']}_{count}", disabled=generating,
                             help="Switching versions restores that version's follow-up conversation.")
                         if chosen != message["selected_version"]:
                             switch_version(messages, index, chosen)
                             st.rerun()
                     else:
-                        st.caption(f"Version 1 of 1 · {phase.capitalize()}")
+                        st.caption("Version 1 of 1")
+                    metadata = [phase.capitalize()]
                     if version["model"]:
-                        st.caption(f"{version['model']} · {version['created_at'][:19].replace('T', ' ')} UTC")
+                        metadata.append(version["model"])
+                    metadata.append(f"{version['created_at'][:19].replace('T', ' ')} UTC")
+                    st.caption(" · ".join(metadata))
                 retry = phase in {"stopped", "failed"}
                 if action.button("Retry response" if retry else "Regenerate", key=f"regenerate_{message['id']}",
                                  width="stretch", disabled=generating or not embedding_ready or not chat_ready,

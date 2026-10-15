@@ -126,6 +126,9 @@ class InterfaceTests(unittest.TestCase):
             self.assertFalse(list(app.exception))
             self.assertEqual(len(message["versions"]), 2)
             self.assertEqual(message["content"], "The complete budget answer [1].")
+            self.assertTrue(any(caption.value.startswith("Complete ·") for caption in app.caption))
+            self.assertEqual(next(box for box in app.selectbox if box.label == "Response version").options,
+                             ["Version 1 of 2", "Version 2 of 2"])
             next(box for box in app.selectbox if box.label == "Response version").select(0).run()
             self.assertEqual(message["content"], "A partial answer")
 

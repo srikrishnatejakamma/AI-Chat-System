@@ -123,6 +123,7 @@ docker compose exec app python scripts/smoke_test.py
 
 ## Troubleshooting
 
+- **ImportError after updating Python files:** stop the existing Streamlit process with Ctrl+C and restart `scripts/start-local.ps1` so newly added functions and modules load together. Refresh the browser afterward. For the full Docker setup, rebuild the app with `docker compose up --build -d app`.
 - **Docker command missing:** `scripts/start-docker.ps1` detects the standard Rancher Desktop and Docker Desktop paths. For manual commands, add the appropriate `resources/.../bin` folder to your terminal PATH.
 - **Ollama offline:** check `docker compose ps` and `docker compose logs ollama`. For native runs, start Ollama and verify the endpoint.
 - **Rancher Desktop resets localhost connections:** a healthy container can still be unreachable through affected Windows loopback forwarding. See the [Rancher Desktop issue](https://github.com/rancher-sandbox/rancher-desktop/issues/7720). Update/restart Rancher Desktop or use native Ollama; keep the app's local-only binding.
