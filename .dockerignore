@@ -1,0 +1,12 @@
+.git
+.venv
+.setup-tmp
+__pycache__
+.pytest_cache
+data
+chroma_db
+temp
+.env
+*.pyc
+.browser-test
+artifacts

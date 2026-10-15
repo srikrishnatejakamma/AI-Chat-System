@@ -1,0 +1,11 @@
+.venv/
+.setup-tmp/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+data/
+chroma_db/
+temp/
+.env
+.browser-test/
+artifacts/

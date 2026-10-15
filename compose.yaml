@@ -1,0 +1,37 @@
+services:
+  ollama:
+    image: ollama/ollama:0.18.0
+    restart: unless-stopped
+    environment:
+      OLLAMA_NO_CLOUD: "1"
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      LLM_MODEL: ${LLM_MODEL:-llama3.1:8b}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      DATA_DIR: /app/data
+      ANONYMIZED_TELEMETRY: "False"
+    volumes:
+      - document_data:/app/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+volumes:
+  ollama_models:
+  document_data:

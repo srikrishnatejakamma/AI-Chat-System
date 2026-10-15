@@ -115,6 +115,8 @@ docker compose exec app python scripts/smoke_test.py
 
 - **Docker command missing:** `scripts/start-docker.ps1` detects the standard Rancher Desktop and Docker Desktop paths. For manual commands, add the appropriate `resources/.../bin` folder to your terminal PATH.
 - **Ollama offline:** check `docker compose ps` and `docker compose logs ollama`. For native runs, start Ollama and verify the endpoint.
+- **Rancher Desktop resets localhost connections:** a healthy container can still be unreachable through affected Windows loopback forwarding. See the [Rancher Desktop issue](https://github.com/rancher-sandbox/rancher-desktop/issues/7720). Update/restart Rancher Desktop or use native Ollama; keep the app's local-only binding.
+- **Model download fails with DNS/TLS errors:** retry the `ollama pull` command after connectivity recovers. Initial model downloads must complete before chat can work; the app shows missing models explicitly.
 - **Model unavailable:** run the pull commands shown in the sidebar, then refresh. The app never silently downloads a model.
 - **Out of memory / slow answers:** use Phi-3, lower the retrieved-passage count, or allocate more memory to Docker. CPU generation can take a while; GPU acceleration is not enabled by this Compose file.
 - **Port already in use:** stop the conflicting service or change the left side of the relevant Compose port mapping. Keep the `127.0.0.1:` binding for local access.
