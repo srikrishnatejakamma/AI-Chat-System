@@ -1,140 +1,144 @@
-# Local / Document Chat
+# Local Chat
 
-A private Streamlit workspace for chatting with your PDF, DOCX, and TXT files. Ollama generates embeddings and answers locally; Chroma keeps the indexed text and vectors on your disk. No cloud API key is required.
+A ChatGPT-style interface built in **React JavaScript**, backed by a local **FastAPI, Ollama, and Chroma** service. Chat with PDF, DOCX, and TXT documents, inspect sources, stop generation, and switch between response versions. No cloud API key is needed.
+
+## Screenshots
+
+The desktop interface with the chat sidebar and document-aware composer.
+
+![Local Chat desktop interface](docs/screenshots/desktop.png)
+
+A sample conversation showing source citations, regeneration, and response version controls.
+
+![Sample conversation with sources and response version navigation](docs/screenshots/conversation.png)
 
 ## Start on this machine
 
-The Python environment is installed in `.venv`. Ollama runs in local Rancher Desktop. Start Rancher Desktop, then run:
+Start Rancher Desktop so the local Ollama container can run. The Python environment, React dependencies, and models are installed in this checkout.
 
 ```powershell
 .\scripts\start-local.ps1
 ```
 
-Open **http://localhost:8501**. This uses `.env`, which selects `phi3` and `nomic-embed-text`. Ollama must be running and both models must finish downloading. The sidebar shows connection and model readiness. If the Ollama container is stopped, run `docker compose up -d ollama` (the Docker launcher below detects Rancher's executable if it is missing from PATH).
+Open **http://localhost:8501**. FastAPI serves the compiled React interface and the API on the same local port. This checkout's `.env` selects `phi3` and `nomic-embed-text`. If Ollama's container is stopped, use `docker compose up -d ollama`.
+
+After changing React source files, stop the app and rebuild with:
+
+```powershell
+.\scripts\start-local.ps1 -BuildFrontend
+```
+
+The launcher creates a Python environment if needed, installs missing API dependencies, and builds React if `frontend/dist` is missing. A fresh setup requires **Python 3.12** and **Node.js 22.12 or newer**. Initial package and model downloads need internet; the installed app can run offline.
+
+## Use it
+
+- **New chat** opens a fresh conversation. Chats are saved locally, appear in the sidebar, and can be searched, renamed, or deleted. Ctrl+K (Cmd+K on Mac) starts a new chat.
+- Click **+** to upload documents or choose from the library. You can also drag files into the window. Files are indexed locally before you send your question.
+- Use the document selector in the composer to search all documents, attached files, or a specific document. Enter sends; Shift+Enter adds a newline.
+- Click the **square Stop button** in the composer to stop generation. Partial answers remain saved. A retry or regeneration creates a new response version.
+- The **previous/next arrows** below an answer switch versions. Each retains its text, sources, model, timestamp, and status. Switching versions also restores that version's follow-up conversation. Regeneration uses the selected chat model and the original question's document scope and passage count.
+- Click a numbered citation or **Sources** to inspect the passages supplied to the model. PDF excerpts include page numbers.
+- **My documents** manages the indexed library. Removing a document also removes saved chats that cite it, including inactive response branches. Other chats remain intact.
+- **Settings** provides light/dark/system appearance, model selection, passage count, and Ollama connection refresh.
+- The header's **download button** exports the conversation and all saved response branches as JSON (`schema_version: 2`).
+
+Switching conversations stops a running response and saves its partial text. Stop closes an active model HTTP stream; a document lookup already running may finish in the background, but its result is discarded. CPU model startup can take several minutes; subsequent answers are faster while the model remains loaded.
+
+Try `samples/handbook.txt` and ask **What is the annual learning budget?** The answer should be **INR 30,000** with a source reference. Ask **What is the CEO's birthday?** to check the missing-information response.
+
+## React development
+
+Start the local Python API in one terminal:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn api:app --host 127.0.0.1 --port 8501 --reload
+```
+
+In another terminal:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+Open **http://localhost:5173**. Vite forwards `/api` requests to the local Python server. Build with `npm run build`; the API then serves the build at port 8501. The frontend uses React, Vite, local SVG icons, and Markdown rendering. It does not fetch fonts, analytics, or remote document images.
 
 ## Run both services with Docker
 
-Start Rancher Desktop or Docker Desktop with Linux containers enabled. In PowerShell, from this folder:
+Start Rancher Desktop or Docker Desktop with Linux containers, then run:
 
 ```powershell
 .\scripts\start-docker.ps1
 ```
 
-The script builds the app, starts Ollama, and downloads `nomic-embed-text` and `phi3`. Phi-3 is the smaller option from the requirements and uses a 4,096-token context to reduce memory use on this machine's approximately 8 GB Docker allocation. Open **http://localhost:8501**. Downloads may take several minutes; chat works offline after installation and model downloads finish.
+The multi-stage Docker build compiles React with Node, then serves it from the Python API image. The script starts Ollama and downloads `nomic-embed-text` and `phi3`. Open **http://localhost:8501**. Stop an existing native app first if it is using port 8501.
 
-For the larger model in the original requirements, allocate sufficient Docker memory (12–16 GB is more comfortable), then run:
+To use the larger model from the original requirements:
 
 ```powershell
 .\scripts\start-docker.ps1 -ChatModel 'llama3.1:8b'
 ```
 
-If PowerShell blocks local scripts, use these commands instead (also suitable for other shells):
+Or use Compose directly:
 
 ```text
 docker compose up --build -d
 docker compose exec ollama ollama pull nomic-embed-text
-docker compose exec ollama ollama pull llama3.1:8b
+docker compose exec ollama ollama pull phi3
 ```
 
-Plain Compose defaults to `llama3.1:8b` unless overridden; this checkout's local `.env` selects `phi3` for the available Docker memory. You can select another installed chat model in the sidebar. Alternatively copy `.env.example` to `.env`, change `LLM_MODEL`, then recreate the app with `docker compose up -d`.
-
-## Use it
-
-1. Confirm Ollama is connected. Use **Refresh connection** after downloading models.
-2. Upload one or more PDF, DOCX, or UTF-8 TXT files in the sidebar, then click **Index documents**.
-3. Ask a question in **Conversation**. Use **Search in** to focus on one document or the whole library.
-4. Expand the retrieved excerpts below an answer to inspect the source text and PDF page numbers. Citation numbers correspond to these excerpts.
-5. Click **Stop response** while finding passages or generating an answer. Any partial text stays saved. **Retry response** creates a new version after a stop or failure; **Regenerate** creates another version of a completed answer.
-6. Use **Response version** beneath an answer to switch between versions. Each keeps its own text, sources, model, timestamp, and status. Regenerating an earlier answer starts a new follow-up branch; switching back restores its earlier follow-up conversation. Regeneration uses the current chat model and the original question's document scope and passage count.
-7. Use **Document library** to remove an indexed document, **New chat** to cancel generation and clear the conversation, or **Download conversation** to export every response version and saved branch as JSON (`schema_version: 2`).
-
-Response versions and branches last for the current browser session. Download them before starting a new chat or removing a document. Stop closes an active model response immediately; if document retrieval is already running, its local lookup may finish in the background, but its result is discarded and generation does not start.
-
-Try `samples/handbook.txt` and ask **“What is the annual learning budget?”** The answer should be **INR 30,000** with a source reference. Ask **“What is the CEO's birthday?”** to check the model's missing-information response.
-
-The system instructs the local model to answer only from retrieved passages and say `I cannot find this information in the uploaded document.` when unsupported. Like any generative model, it can still make mistakes; excerpts show what was retrieved, rather than guaranteeing every claim is supported. Retrieval uses the current question; phrase follow-ups with the subject included for better results.
-
-## Native Python + Ollama
-
-Install Python 3.11 or 3.12 and [Ollama](https://ollama.com/download). Set `OLLAMA_NO_CLOUD=1` on the **Ollama server process** and restart it to disable remote inference. See [Ollama's local-only configuration](https://docs.ollama.com/faq#how-do-i-disable-ollama-cloud-features).
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-ollama pull nomic-embed-text
-ollama pull llama3.1:8b
-.\.venv\Scripts\python.exe -m streamlit run app.py
-```
-
-Ollama must be running. On a machine without the desktop service, start `ollama serve` in another terminal. For a smaller model, run `ollama pull phi3` and set `$env:LLM_MODEL = 'phi3'` before launching Streamlit.
-
-On macOS/Linux, create a venv with `python3 -m venv .venv`, install with `.venv/bin/python -m pip install -r requirements.txt`, and launch with `.venv/bin/python -m streamlit run app.py`.
-
-You can also ingest without the UI:
-
-```powershell
-.\.venv\Scripts\python.exe ingest.py .\samples\handbook.txt
-```
+Compose reads `.env`; this checkout selects Phi-3. Phi-3 uses a 4,096-token context to reduce memory use. The Compose setup uses CPU inference and binds published ports to `127.0.0.1`.
 
 ## Configuration and storage
 
-| Environment variable | Default | Purpose |
+| Variable | Default | Purpose |
 | --- | --- | --- |
-| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Local Ollama endpoint; Compose uses `http://ollama:11434`. |
-| `LLM_MODEL` | `llama3.1:8b` | Default chat model. |
-| `EMBEDDING_MODEL` | `nomic-embed-text` | Embedding model, downloaded separately. |
-| `DATA_DIR` | `<project>/data` | Persistent storage; Compose uses `/app/data`. |
+| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Local Ollama; Compose uses `http://ollama:11434`. |
+| `LLM_MODEL` | `llama3.1:8b` | Initial chat model; local `.env` selects `phi3`. |
+| `EMBEDDING_MODEL` | `nomic-embed-text` | Document embedding model. |
+| `DATA_DIR` | `<project>/data` | Local persistent storage; Compose uses `/app/data`. |
 
-`.env` is read by Docker Compose and the native Python app. Explicit environment variables take precedence over `.env` values. Restart the app after changing configuration.
+Explicit environment variables take precedence over `.env`. Restart the API after changing configuration. Changing the embedding model selects a separate Chroma collection; upload documents into that collection before asking new questions.
 
-The app supports local loopback, `ollama`, and `host.docker.internal` endpoints. Cloud model names are rejected. Compose disables Ollama cloud features. Streamlit usage statistics, Chroma telemetry, and LangChain tracing are disabled. Initial dependency and model downloads still use the internet. Keep the service on your own machine; it has no authentication or user separation.
+- **Documents:** `data/chroma_db` contains extracted text, vectors, and file metadata. Existing indexed documents are reused by the React app.
+- **Conversations:** `data/conversations.sqlite3` contains chat names, messages, all response versions, sources, and follow-up branches. This history survives browser and server restarts. An interrupted response is restored as stopped.
+- **Docker:** `document_data` stores both databases; `ollama_models` stores model weights. They survive `docker compose down`. `docker compose down -v` permanently deletes the volumes.
 
-Native Chroma data lives in `data/chroma_db`. Docker stores documents in the `document_data` volume and models in `ollama_models`. Both survive `docker compose down`. **`docker compose down -v` permanently deletes both volumes.** Back up the document volume while the app is stopped if you need a consistent database copy.
+Uploaded originals are not retained after indexing. Identical contents are skipped even when renamed. Changed contents with the same filename are separate entries. Uploads are limited to 25 MB; TXT files must use UTF-8. Scanned PDFs need OCR before upload, encrypted PDFs need an unlocked copy, and DOCX headers/footers and embedded images are not indexed. Previously exported conversation files remain on your disk when you delete chats or documents in the app.
 
-Only extracted text, embeddings, and filename metadata are retained; uploaded originals are parsed in memory. Same-content uploads are skipped even if renamed. Changed contents with the same filename are separate entries. Files are limited to 25 MB each. Textless scanned PDFs need OCR first, encrypted PDFs need an unlocked copy, and DOCX headers/footers and embedded images are not indexed. Chat history is session-only and is cleared when removing a document; previously exported conversations remain on your disk.
+The prompt asks the local model to use only retrieved excerpts and respond `I cannot find this information in the uploaded document.` when unsupported. Models can still make mistakes; inspect the sources. Follow-ups are retrieved using the current question, so include the subject for better retrieval.
 
-Embedding model and chunking settings identify separate collections so incompatible vectors never mix. Changing the embedding model requires re-uploading documents to the new collection. The old collection remains on disk and reappears if you switch back.
+The app accepts only local Ollama endpoints and rejects cloud model names. Compose sets `OLLAMA_NO_CLOUD=1`. LangChain tracing and Chroma telemetry are disabled. For native Ollama, set `OLLAMA_NO_CLOUD=1` on the Ollama server process and restart it; see [Ollama's local-only configuration](https://docs.ollama.com/faq#how-do-i-disable-ollama-cloud-features). The app is a personal local workspace without account authentication; keep its loopback binding.
 
 ## Checks
 
-The offline suite uses real document parsers and persistent Chroma with deterministic test embeddings; no Ollama service or downloads are required. It covers ingestion, duplicate handling, rollback, deletion, scoped retrieval, parser errors, source mapping, and Streamlit UI behavior.
-
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+cd frontend
+npm test
+npm run build
 ```
 
-Or inside the built Docker image:
+Python checks cover document parsing, Chroma persistence, cancellation (including actual HTTP disconnection), version branches, chat recovery, and API routes. React tests cover version arrows, stop/send controls, copying, citations, and chat search. They do not require downloaded models.
 
-```text
-docker compose run --rm --no-deps app python -m unittest discover -s tests -v
-```
-
-After downloading both models, exercise real embeddings, retrieval, generation, citation, missing-information handling, and deletion with:
+With Ollama and both models installed, verify real retrieval and answers using a temporary document library:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/smoke_test.py
 ```
 
-Or with both services running in Docker:
-
-```text
-docker compose exec app python scripts/smoke_test.py
-```
-
 ## Troubleshooting
 
-- **ImportError after updating Python files:** stop the existing Streamlit process with Ctrl+C and restart `scripts/start-local.ps1` so newly added functions and modules load together. Refresh the browser afterward. For the full Docker setup, rebuild the app with `docker compose up --build -d app`.
-- **Docker command missing:** `scripts/start-docker.ps1` detects the standard Rancher Desktop and Docker Desktop paths. For manual commands, add the appropriate `resources/.../bin` folder to your terminal PATH.
-- **Ollama offline:** check `docker compose ps` and `docker compose logs ollama`. For native runs, start Ollama and verify the endpoint.
-- **Rancher Desktop resets localhost connections:** a healthy container can still be unreachable through affected Windows loopback forwarding. See the [Rancher Desktop issue](https://github.com/rancher-sandbox/rancher-desktop/issues/7720). Update/restart Rancher Desktop or use native Ollama; keep the app's local-only binding.
-- **Model download fails with DNS/TLS errors:** retry the `ollama pull` command after connectivity recovers. Initial model downloads must complete before chat can work; the app shows missing models explicitly.
-- **Model unavailable:** run the pull commands shown in the sidebar, then refresh. The app never silently downloads a model.
-- **Out of memory / slow answers:** use Phi-3, lower the retrieved-passage count, or allocate more memory to Docker. CPU generation can take a while; GPU acceleration is not enabled by this Compose file.
-- **Port already in use:** stop the conflicting service or change the left side of the relevant Compose port mapping. Keep the `127.0.0.1:` binding for local access.
-- **Need logs or a restart:** use `docker compose logs --tail 100 app` or `docker compose restart app`.
+- **Ollama offline or missing models:** open Settings, start Ollama, pull the shown models, and refresh the connection.
+- **Docker not on PATH:** `scripts/start-docker.ps1` detects standard Rancher Desktop and Docker Desktop installation paths.
+- **Port in use:** stop the old Streamlit/API process before launching the React app on port 8501.
+- **ImportError after updating Python modules:** restart the API process so the updated modules load together. For a Docker app, rebuild with `docker compose up --build -d app`.
+- **React changes not visible:** run `scripts/start-local.ps1 -BuildFrontend`, or use Vite's development server for automatic updates.
+- **Slow first answer / memory pressure:** select Phi-3. This Compose file does not enable GPU acceleration.
+- **Rancher localhost connection resets:** restart/update Rancher Desktop; see [the Windows loopback forwarding issue](https://github.com/rancher-sandbox/rancher-desktop/issues/7720).
+- **Model download DNS/TLS failure:** retry `ollama pull` after connectivity recovers. Both downloads must finish before chat can work.
 
 ## Code map
 
-`app.py` is the Streamlit UI, `ingest.py` handles parsing and Chroma storage, `chat.py` builds grounded prompts and streams local answers, `generation.py` runs cancellable background responses, `conversation.py` manages response versions and follow-up branches, `local_models.py` checks installed models, and `config.py` holds runtime settings. This follows the modular Streamlit/Ollama/Chroma architecture in `Requirment.txt` without unnecessary cloud or sentence-transformer dependencies.
-#   A I - C h a t - S y s t e m  
- 
+`frontend/src` contains the React interface. `api.py` exposes local API routes and serves the build. `chat_store.py` persists conversations, `conversation.py` manages versions and branches, `generation.py` runs cancellable responses, `chat.py` builds local model prompts, `ingest.py` handles parsing and Chroma storage, and `config.py` holds runtime settings.

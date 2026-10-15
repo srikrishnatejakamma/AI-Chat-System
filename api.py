@@ -18,7 +18,7 @@ from chat_store import ChatStore
 from conversation import add_version, ensure_versions, export_messages, history_before, new_version, sync_selected, switch_version
 from generation import ACTIVE, GenerationJob
 from ingest import DocumentLibrary
-from local_models import inspect_ollama
+from local_models import inspect_ollama, normalized_model
 
 
 class MessageRequest(BaseModel):
@@ -164,7 +164,10 @@ def create_app(settings=None, library=None, frontend_dir=None):
     def status(refresh: bool = False):
         ws = workspace()
         state = ws.status(refresh)
-        models = list(dict.fromkeys([ws.settings.chat_model] + [m for m in state.models if "embed" not in m.lower()]))
+        models = [ws.settings.chat_model]
+        for model in state.models:
+            if "embed" not in model.lower() and normalized_model(model) not in {normalized_model(name) for name in models}:
+                models.append(model)
         return {"online": state.online, "models": models, "installed_models": state.models,
                 "default_model": ws.settings.chat_model, "embedding_model": ws.settings.embedding_model,
                 "embedding_ready": state.online and state.has(ws.settings.embedding_model),

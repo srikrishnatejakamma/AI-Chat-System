@@ -152,10 +152,10 @@ export default function App() {
   async function newChat() {
     await action(async () => {
       if (chat?.active) await request(`/chats/${chat.id}/stop`, { method: 'POST' });
+      await refreshChats();
       applyChat(null); setDraft(''); setAttachments([]); setScope('all'); setSources(null);
       nearBottom.current = true;
       if (window.innerWidth < 900) setSidebarOpen(false);
-      await refreshChats();
       setTimeout(() => inputRef.current?.focus(), 0);
     });
   }
@@ -208,14 +208,16 @@ export default function App() {
 
   async function uploadFiles(fileList) {
     if (uploading || busy) { notify('Stop the current response before adding documents.'); return; }
-    const files = Array.from(fileList);
+    const files = Array.from(fileList).filter(file => {
+      if (!/\.(pdf|docx|txt)$/i.test(file.name) || file.size > 25 * 1024 * 1024) {
+        notify(`${file.name}: choose a PDF, DOCX, or TXT file up to 25 MB.`); return false;
+      }
+      return true;
+    });
     if (!files.length) return;
     setUploading(true); setScope('attachments');
     for (const file of files) {
       const key = crypto.randomUUID();
-      if (!/\.(pdf|docx|txt)$/i.test(file.name) || file.size > 25 * 1024 * 1024) {
-        notify(`${file.name}: choose a PDF, DOCX, or TXT file up to 25 MB.`); continue;
-      }
       setAttachments(previous => [...previous, { key, name: file.name, indexing: true }]);
       try {
         const body = new FormData(); body.append('file', file);
@@ -256,7 +258,7 @@ export default function App() {
     if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); dragDepth.current++; setDragging(true); }
   }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files')) { dragDepth.current--; if (dragDepth.current <= 0) setDragging(false); } }}
     onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); setDragging(false); dragDepth.current = 0; if (event.dataTransfer.files.length) uploadFiles(event.dataTransfer.files); }}>
-    <Sidebar open={sidebarOpen} onToggle={() => setSidebarOpen(value => !value)} chats={chats} chatId={chat?.id} online={status?.online}
+    <Sidebar open={sidebarOpen} onToggle={() => setSidebarOpen(value => !value)} chats={chats} chatId={chat?.id} online={status?.online} navigationBusy={requesting || uploading}
       onNew={newChat} onSelect={selectChat} onLibrary={() => setModal('library')} onSettings={() => setModal('settings')}
       onRename={target => setConfirm({ title: 'Rename chat', description: 'Give this conversation a name.', actionLabel: 'Save', initialValue: target.title,
         onConfirm: async title => { const saved = await request(`/chats/${target.id}`, { method: 'PATCH', body: { title } }); if (chat?.id === target.id) applyChat(saved); await refreshChats(); } })}
