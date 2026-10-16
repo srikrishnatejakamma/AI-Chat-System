@@ -66,6 +66,10 @@ An optional [report-format fine-tuning experiment](training/README.md) includes 
 
 The [benchmark suite](benchmarks/README.md) checks document QA, abstention, citations, report format, document scoping, and a prompt-injection fixture. It compares installed local models and exports JSON and Markdown reports with response times, first-token latency, and token throughput when measured. Automatic rule checks and manual review are reported separately.
 
+![Benchmark workflow from live or saved responses through evaluation to JSON and Markdown reports](docs/diagrams/benchmark-workflow.svg)
+
+See the [workflow diagrams and review process](benchmarks/README.md#workflow-diagrams) for rescoring and model comparisons.
+
 ```powershell
 # Validate cases without calling a model
 .\.venv\Scripts\python.exe scripts/benchmark.py --validate

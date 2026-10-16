@@ -2,6 +2,16 @@
 
 The suite evaluates the local RAG backend with fixed fixtures and saves every answer, retrieved excerpt, automatic check, and available timing measurement. It also scores saved answers without running a model. No GPU, training libraries, cloud judge, new Python dependencies, or model downloads are required.
 
+## Workflow diagrams
+
+Choose a live run, score saved trials, or rescore reviewed results. Each route produces the same report format; speed measurements are available only when recorded.
+
+![Benchmark workflow showing live runs, saved trials, rescoring, automatic checks, and report outputs](../docs/diagrams/benchmark-workflow.svg)
+
+Review factual correctness, citation support, and relevance separately from automatic checks before comparing models.
+
+![Benchmark review workflow showing automatic checks, manual evidence review, rescoring, and comparisons under matching conditions](../docs/diagrams/benchmark-review-workflow.svg)
+
 ## Quick start
 
 Run these commands from the repository root. Validate the eight cases and their three source fixtures without calling Ollama:
