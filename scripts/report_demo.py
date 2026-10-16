@@ -48,6 +48,8 @@ def ask(client, question, document_id):
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "artifacts" / "report-demo")
     args = parser.parse_args()
@@ -72,7 +74,8 @@ def main():
                 "What is the annual learning budget, what can it cover, and what approval is needed? "
                 "Write a concise Markdown report using exactly these headings in this order: "
                 "## Summary, ## Findings, ## Next steps. Cite factual claims with excerpt numbers. "
-                "Clearly mark proposed actions as recommendations.", uploaded["document_id"])
+                "Clearly mark proposed actions as recommendations. Use only explicitly stated policies; "
+                "do not invent eligibility restrictions. Keep the report under 150 words.", uploaded["document_id"])
             print(report["answer"], flush=True)
             (args.output / "report.md").write_text(report["answer"] + "\n", encoding="utf-8")
             missing = ask(client, "What is the CEO's birthday?", uploaded["document_id"])

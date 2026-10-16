@@ -58,7 +58,7 @@ With Ollama running, try the sample handbook through the real upload and chat AP
 .\.venv\Scripts\python.exe scripts/report_demo.py
 ```
 
-This checks the budget answer, citations, report headings, and an unsupported question. It saves the generated report and check results under ignored `artifacts/report-demo/`. CPU generation can take several minutes.
+This checks the budget answer, citation presence, report headings, and an unsupported question. It saves the generated report and check results under ignored `artifacts/report-demo/`. These checks do not verify every claim against the source; inspect the generated report for added conditions or unsupported details. CPU generation can take several minutes.
 
 An optional [report-format fine-tuning experiment](training/README.md) includes fictional JSONL examples, separate evaluation data, offline dataset validation, and a CUDA QLoRA training script. Training requires a compatible GPU and a separate Python environment. It does not replace the app's current model automatically.
 

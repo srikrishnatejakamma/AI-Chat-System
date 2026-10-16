@@ -6,6 +6,17 @@ The supplied JSONL files contain **12 training examples and 4 held-out evaluatio
 
 No existing documents, conversations, app model settings, or Ollama model weights are changed by these scripts.
 
+## Local trial results
+
+Tested on 2026-10-16 with the installed `phi3` and `nomic-embed-text` models, using `samples/handbook.txt` through the real upload and chat API in isolated workspaces:
+
+- Both attempts returned the INR 30,000 budget with citations and the expected missing-information response for the CEO's birthday.
+- The first attempt used the requested headings but added eligibility restrictions absent from the handbook. Structural checks alone did not catch that factual problem.
+- A second prompt explicitly prohibited invented eligibility restrictions and requested fewer than 150 words. It produced a broader handbook summary, used `###` headings instead of the requested `##` headings, and exceeded the word limit. Its report-heading check failed.
+- The five dataset-validation tests passed. QLoRA training was not run: the laptop has no detected NVIDIA GPU, and training dependencies were not installed into the app environment.
+
+The untrained model's report formatting and grounding were inconsistent in this small trial. The supplied dataset and script are preparation for a GPU experiment; no fine-tuning improvement has been demonstrated. CPU generation took several minutes per response. Raw reports and check results are saved locally under ignored `artifacts/report-demo/` and `artifacts/report-demo/strict/`.
+
 ## Validate the dataset on this laptop
 
 Run from the repository root:
