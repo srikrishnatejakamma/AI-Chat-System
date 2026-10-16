@@ -62,6 +62,20 @@ This checks the budget answer, citation presence, report headings, and an unsupp
 
 An optional [report-format fine-tuning experiment](training/README.md) includes fictional JSONL examples, separate evaluation data, offline dataset validation, and a CUDA QLoRA training script. Training requires a compatible GPU and a separate Python environment. It does not replace the app's current model automatically.
 
+## AI evaluation and benchmarking
+
+The [benchmark suite](benchmarks/README.md) checks document QA, abstention, citations, report format, document scoping, and a prompt-injection fixture. It compares installed local models and exports JSON and Markdown reports with response times, first-token latency, and token throughput when measured. Automatic rule checks and manual review are reported separately.
+
+```powershell
+# Validate cases without calling a model
+.\.venv\Scripts\python.exe scripts/benchmark.py --validate
+
+# Run one short real-model case with a generation timeout
+.\.venv\Scripts\python.exe scripts/benchmark.py --live --case budget --max-tokens 64 --timeout 120
+```
+
+See the guide for saved-response scoring, repeated runs, model comparisons, and CI gates. Results use an isolated fixture database and are saved under ignored `artifacts/benchmarks/`.
+
 ## React development
 
 Start the local Python API in one terminal:
