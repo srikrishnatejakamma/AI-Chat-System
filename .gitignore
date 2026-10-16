@@ -13,3 +13,7 @@ frontend/node_modules/
 frontend/dist/
 .venv-training/
 training/output/
+!training/data/
+training/data/*
+!training/data/report_train.jsonl
+!training/data/report_eval.jsonl

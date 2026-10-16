@@ -213,11 +213,23 @@ async def run_live(args, suite, progress=None, checkpoint=None):
                 for case in selected_cases:
                     if progress:
                         progress(f"Running {config.chat_model}: {case['id']} (repeat {repetition}/{args.repeat})")
-                    record = await measure_case(
-                        library, config, case, [indexed[name] for name in case["documents"]],
-                        repeat=repetition, seed=args.seed + repetition - 1, timeout=args.timeout, max_tokens=args.max_tokens,
-                        context_size=args.context_size,
-                    )
+                    async def heartbeat():
+                        started = time.perf_counter()
+                        while True:
+                            await asyncio.sleep(15)
+                            progress(f"  Still running {case['id']} ({time.perf_counter() - started:.0f}s elapsed)...")
+
+                    notice = asyncio.create_task(heartbeat()) if progress else None
+                    try:
+                        record = await measure_case(
+                            library, config, case, [indexed[name] for name in case["documents"]],
+                            repeat=repetition, seed=args.seed + repetition - 1, timeout=args.timeout, max_tokens=args.max_tokens,
+                            context_size=args.context_size,
+                        )
+                    finally:
+                        if notice:
+                            notice.cancel()
+                            await asyncio.gather(notice, return_exceptions=True)
                     records.append(record)
                     if checkpoint:
                         checkpoint(records, metadata)
