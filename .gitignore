@@ -11,3 +11,5 @@ temp/
 artifacts/
 frontend/node_modules/
 frontend/dist/
+.venv-training/
+training/output/
